@@ -245,7 +245,8 @@
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
         var blob = await canvasToBlob(canvas);
-        renderedBlobs.push({ blob: blob, pageNum: p, baseName: name });
+        var imgBase64 = await blobToBase64(blob);
+        renderedBlobs.push({ blob: blob, base64: imgBase64, pageNum: p, baseName: name });
         var idx = renderedBlobs.length - 1;
         var imgUrl = URL.createObjectURL(blob);
         var card = document.createElement('div');
@@ -278,18 +279,11 @@
 
   /* ── Enviar im&#225;genes a la app v&#237;a portapapeles ── */
   async function sendToApp() {
-    document.getElementById('btnSend').textContent = 'Preparando…';
+    document.getElementById('btnSend').textContent = 'Enviando…';
     document.getElementById('btnSend').disabled = true;
 
     try {
-      var images = await Promise.all(renderedBlobs.map(function(item) {
-        return new Promise(function(resolve) {
-          var reader = new FileReader();
-          reader.onload = function(e) { resolve(e.target.result.split(',')[1]); };
-          reader.readAsDataURL(item.blob);
-        });
-      }));
-
+      var images = renderedBlobs.map(function(item) { return item.base64; });
       var payload = JSON.stringify({ facturador_images: images });
       await navigator.clipboard.writeText(payload);
 
@@ -301,9 +295,9 @@
         '</div>';
 
     } catch (e) {
-      document.getElementById('btnSend').textContent = '✅ Enviar a la app de facturas';
+      document.getElementById('btnSend').textContent = '&#9989; Enviar a la app de facturas';
       document.getElementById('btnSend').disabled = false;
-      alert('Error al preparar las imágenes: ' + e.message);
+      alert('Error al enviar: ' + e.message);
     }
   }
 
@@ -325,6 +319,13 @@
   function canvasToBlob(c) {
     return new Promise(function(r) { c.toBlob(r, 'image/jpeg', 0.92); });
   }
+  function blobToBase64(blob) {
+    return new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = function(e) { resolve(e.target.result.split(',')[1]); };
+      reader.readAsDataURL(blob);
+    });
+  }
   function showStatus(t) {
     document.getElementById('statusText').textContent = t;
     document.getElementById('status').style.display = 'block';
@@ -334,4 +335,3 @@
 </script>
 </body>
 </html>
-
