@@ -40,6 +40,13 @@
       cursor: pointer; -webkit-tap-highlight-color: transparent; margin-bottom: 12px;
     }
     .btn-clipboard:active { opacity: 0.75; }
+    .btn-send {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; background: #1C7B3A; color: #fff; border: none;
+      border-radius: 14px; padding: 18px; font-size: 17px; font-weight: 700;
+      cursor: pointer; -webkit-tap-highlight-color: transparent; margin-bottom: 12px;
+    }
+    .btn-send:active { opacity: 0.75; }
     .btn-secondary {
       display: flex; align-items: center; justify-content: center; gap: 8px;
       width: 100%; background: none; color: #7B1D1D; border: 1.5px solid #7B1D1D;
@@ -47,13 +54,6 @@
       cursor: pointer; -webkit-tap-highlight-color: transparent; margin-bottom: 12px;
     }
     .btn-secondary:active { background: #F2F2F7; }
-    .btn-save-all {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      width: 100%; background: #1C7B3A; color: #fff; border: none;
-      border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 600;
-      cursor: pointer; margin-bottom: 16px; -webkit-tap-highlight-color: transparent;
-    }
-    .btn-save-all:active { opacity: 0.75; }
     .status { display: none; text-align: center; padding: 32px 20px; }
     .spinner {
       width: 36px; height: 36px; border: 3px solid #E5E5EA;
@@ -75,10 +75,18 @@
     .btn-save-page {
       display: flex; align-items: center; justify-content: center; gap: 6px;
       width: 100%; background: none; border: none; border-top: 1px solid #F2F2F7;
-      padding: 14px; font-size: 16px; font-weight: 600; color: #7B1D1D;
+      padding: 12px; font-size: 14px; font-weight: 500; color: #6C6C70;
       cursor: pointer; -webkit-tap-highlight-color: transparent;
     }
     .btn-save-page:active { background: #F2F2F7; }
+    .success-box {
+      text-align: center; padding: 40px 20px;
+      background: #fff; border-radius: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .success-box .icon { font-size: 56px; margin-bottom: 16px; }
+    .success-box h2 { font-size: 20px; font-weight: 700; color: #1C7B3A; margin-bottom: 8px; }
+    .success-box p { font-size: 15px; color: #6C6C70; line-height: 1.5; }
     .hidden { display: none !important; }
     .empty { text-align: center; padding: 48px 20px; color: #8E8E93; font-size: 15px; }
     .empty .icon { font-size: 52px; margin-bottom: 12px; }
@@ -91,13 +99,10 @@
 </div>
 <div class="content">
 
-  <!-- Nota cuando viene desde la app -->
   <div class="note-app hidden" id="noteApp">
-    &#128241; PDF copiado desde la app de facturas.<br>
-    Toca <strong>Cargar PDF</strong> para convertirlo autom&#225;ticamente.
+    &#128241; PDF cargado desde la app.<br>
+    Toca <strong>Cargar PDF</strong> para convertirlo.
   </div>
-
-  <!-- Nota normal -->
   <div class="note" id="noteNormal">
     &#128246; Necesitas internet para cargar el conversor.<br>
     &#128274; El PDF <strong>nunca sale del dispositivo</strong>.
@@ -105,12 +110,9 @@
 
   <input type="file" id="fileInput" accept="application/pdf">
 
-  <!-- Bot&#243;n portapapeles (solo cuando viene desde la app) -->
   <button class="btn-clipboard hidden" id="btnClipboard" onclick="loadFromClipboard()">
     &#128196; Cargar PDF
   </button>
-
-  <!-- Bot&#243;n selecci&#243;n manual -->
   <button id="btnPick" onclick="document.getElementById('fileInput').click()">
     &#128193; Seleccionar PDF manualmente
   </button>
@@ -122,9 +124,12 @@
 
   <div id="result" class="hidden">
     <div style="height:20px;"></div>
-    <button class="btn-save-all hidden" id="saveAllBtn" onclick="saveAll()">
-      &#128247; Guardar todas las p&#225;ginas en Fotos
+
+    <!-- Bot&#243;n principal cuando viene de la app -->
+    <button class="btn-send hidden" id="btnSend" onclick="sendToApp()">
+      &#9989; Enviar a la app de facturas
     </button>
+
     <div class="pages" id="pages"></div>
   </div>
 
@@ -135,7 +140,6 @@
 
 </div>
 <script>
-  /* ── Detectar si viene desde la app ── */
   var fromApp = new URLSearchParams(window.location.search).get('from') === 'app';
 
   if (fromApp) {
@@ -143,14 +147,12 @@
     document.getElementById('noteNormal').classList.add('hidden');
     document.getElementById('btnClipboard').classList.remove('hidden');
     document.getElementById('btnPick').className = 'btn-secondary';
-    document.getElementById('btnPick').innerHTML = '&#128193; Seleccionar PDF manualmente';
     document.getElementById('emptyText').textContent = 'Toca "Cargar PDF" para empezar';
   } else {
     document.getElementById('btnPick').className = 'btn-primary';
     document.getElementById('btnPick').innerHTML = '&#128196; Seleccionar PDF';
   }
 
-  /* ── PDF.js ── */
   var pdfJsReady = false;
   var renderedBlobs = [];
 
@@ -171,11 +173,10 @@
     })
     .catch(function(e) {
       document.getElementById('empty').innerHTML =
-        '<div class="icon">⚠️</div><p>' + e.message + '</p>';
+        '<div class="icon">&#9888;&#65039;</div><p>' + e.message + '</p>';
       document.getElementById('empty').classList.remove('hidden');
     });
 
-  /* ── Cargar desde portapapeles ── */
   async function loadFromClipboard() {
     try {
       var base64 = await navigator.clipboard.readText();
@@ -193,7 +194,6 @@
     }
   }
 
-  /* ── Selecci&#243;n manual ── */
   document.getElementById('fileInput').addEventListener('change', async function(e) {
     var file = e.target.files[0];
     if (!file) return;
@@ -210,11 +210,10 @@
     });
   }
 
-  /* ── Procesar PDF ── */
   async function processPdf(base64, name) {
     renderedBlobs = [];
     document.getElementById('pages').innerHTML = '';
-    document.getElementById('saveAllBtn').classList.add('hidden');
+    document.getElementById('btnSend').classList.add('hidden');
     document.getElementById('result').classList.add('hidden');
     document.getElementById('empty').classList.add('hidden');
     showStatus('Esperando conversor…');
@@ -251,25 +250,63 @@
         var imgUrl = URL.createObjectURL(blob);
         var card = document.createElement('div');
         card.className = 'page-card';
+
+        var saveBtn = fromApp
+          ? '<button class="btn-save-page" onclick="savePage(' + idx + ')">&#128247; Guardar en Fotos (opcional)</button>'
+          : '<button class="btn-save-page" onclick="savePage(' + idx + ')">&#128247; Guardar en Fotos</button>';
+
         card.innerHTML =
           '<div class="page-label">Página ' + p + ' de ' + numPages + '</div>' +
           '<img class="page-img" src="' + imgUrl + '" />' +
-          '<button class="btn-save-page" onclick="savePage(' + idx + ')">📷 Guardar en Fotos</button>';
+          saveBtn;
         document.getElementById('pages').appendChild(card);
       }
 
       hideStatus();
-      if (numPages > 1) document.getElementById('saveAllBtn').classList.remove('hidden');
+
+      if (fromApp) {
+        document.getElementById('btnSend').classList.remove('hidden');
+      }
 
     } catch (err) {
       hideStatus();
       document.getElementById('empty').innerHTML =
-        '<div class="icon">⚠️</div><p>' + err.message + '</p>';
+        '<div class="icon">&#9888;&#65039;</div><p>' + err.message + '</p>';
       document.getElementById('empty').classList.remove('hidden');
     }
   }
 
-  /* ── Guardar ── */
+  /* ── Enviar im&#225;genes a la app v&#237;a portapapeles ── */
+  async function sendToApp() {
+    document.getElementById('btnSend').textContent = 'Preparando…';
+    document.getElementById('btnSend').disabled = true;
+
+    try {
+      var images = await Promise.all(renderedBlobs.map(function(item) {
+        return new Promise(function(resolve) {
+          var reader = new FileReader();
+          reader.onload = function(e) { resolve(e.target.result.split(',')[1]); };
+          reader.readAsDataURL(item.blob);
+        });
+      }));
+
+      var payload = JSON.stringify({ facturador_images: images });
+      await navigator.clipboard.writeText(payload);
+
+      document.getElementById('result').innerHTML =
+        '<div class="success-box">' +
+        '<div class="icon">&#9989;</div>' +
+        '<h2>Listo</h2>' +
+        '<p>Vuelve a la app de facturas.<br>Las im&#225;genes se adjuntar&#225;n autom&#225;ticamente.</p>' +
+        '</div>';
+
+    } catch (e) {
+      document.getElementById('btnSend').textContent = '✅ Enviar a la app de facturas';
+      document.getElementById('btnSend').disabled = false;
+      alert('Error al preparar las imágenes: ' + e.message);
+    }
+  }
+
   async function savePage(idx) {
     var item = renderedBlobs[idx];
     var file = new File([item.blob], item.baseName + '_pag' + item.pageNum + '.jpg', { type: 'image/jpeg' });
@@ -279,21 +316,6 @@
       } else {
         window.open(URL.createObjectURL(item.blob), '_blank');
         alert('Pulsa y mantén sobre la imagen → "Añadir a Fotos"');
-      }
-    } catch (err) {
-      if (err.name !== 'AbortError') alert('Error: ' + err.message);
-    }
-  }
-
-  async function saveAll() {
-    var files = renderedBlobs.map(function(item) {
-      return new File([item.blob], item.baseName + '_pag' + item.pageNum + '.jpg', { type: 'image/jpeg' });
-    });
-    try {
-      if (navigator.share && navigator.canShare({ files: files })) {
-        await navigator.share({ files: files });
-      } else {
-        for (var i = 0; i < renderedBlobs.length; i++) await savePage(i);
       }
     } catch (err) {
       if (err.name !== 'AbortError') alert('Error: ' + err.message);
@@ -312,3 +334,4 @@
 </script>
 </body>
 </html>
+
