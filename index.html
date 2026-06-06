@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>PDF → Imagen</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      background: #F2F2F7; color: #000; min-height: 100vh;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .header { background: #7B1D1D; padding: 52px 20px 24px; text-align: center; }
+    .header h1 { color: #fff; font-size: 22px; font-weight: 700; }
+    .header p  { color: rgba(255,255,255,0.75); font-size: 14px; margin-top: 6px; }
+    .content { padding: 20px 16px 40px; }
+    .note {
+      background: #FFF9E6; border: 1px solid #FFE066; border-radius: 12px;
+      padding: 12px 14px; font-size: 13px; color: #6B4F00;
+      line-height: 1.5; margin-bottom: 20px;
+    }
+    .note-app {
+      background: #E8F4FD; border: 1px solid #90CAF9; border-radius: 12px;
+      padding: 12px 14px; font-size: 13px; color: #0D47A1;
+      line-height: 1.5; margin-bottom: 20px;
+    }
+    #fileInput { display: none; }
+    .btn-primary {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; background: #7B1D1D; color: #fff; border: none;
+      border-radius: 14px; padding: 18px; font-size: 17px; font-weight: 600;
+      cursor: pointer; -webkit-tap-highlight-color: transparent; margin-bottom: 12px;
+    }
+    .btn-primary:active { opacity: 0.75; }
+    .btn-clipboard {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; background: #1565C0; color: #fff; border: none;
+      border-radius: 14px; padding: 18px; font-size: 17px; font-weight: 600;
+      cursor: pointer; -webkit-tap-highlight-color: transparent; margin-bottom: 12px;
+    }
+    .btn-clipboard:active { opacity: 0.75; }
+    .btn-secondary {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; background: none; color: #7B1D1D; border: 1.5px solid #7B1D1D;
+      border-radius: 14px; padding: 14px; font-size: 15px; font-weight: 600;
+      cursor: pointer; -webkit-tap-highlight-color: transparent; margin-bottom: 12px;
+    }
+    .btn-secondary:active { background: #F2F2F7; }
+    .btn-save-all {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; background: #1C7B3A; color: #fff; border: none;
+      border-radius: 14px; padding: 16px; font-size: 16px; font-weight: 600;
+      cursor: pointer; margin-bottom: 16px; -webkit-tap-highlight-color: transparent;
+    }
+    .btn-save-all:active { opacity: 0.75; }
+    .status { display: none; text-align: center; padding: 32px 20px; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid #E5E5EA;
+      border-top-color: #7B1D1D; border-radius: 50%;
+      animation: spin 0.75s linear infinite; margin: 0 auto 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status p { color: #6C6C70; font-size: 15px; }
+    .pages { margin-top: 4px; }
+    .page-card {
+      background: #fff; border-radius: 14px; overflow: hidden;
+      margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .page-label {
+      padding: 10px 16px; font-size: 12px; font-weight: 600; color: #6C6C70;
+      text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #F2F2F7;
+    }
+    .page-img { width: 100%; display: block; }
+    .btn-save-page {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      width: 100%; background: none; border: none; border-top: 1px solid #F2F2F7;
+      padding: 14px; font-size: 16px; font-weight: 600; color: #7B1D1D;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .btn-save-page:active { background: #F2F2F7; }
+    .hidden { display: none !important; }
+    .empty { text-align: center; padding: 48px 20px; color: #8E8E93; font-size: 15px; }
+    .empty .icon { font-size: 52px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+<div class="header">
+  <h1>PDF &#8594; Imagen</h1>
+  <p>Conversor para la app de facturas</p>
+</div>
+<div class="content">
+
+  <!-- Nota cuando viene desde la app -->
+  <div class="note-app hidden" id="noteApp">
+    &#128241; PDF copiado desde la app de facturas.<br>
+    Toca <strong>Cargar PDF</strong> para convertirlo autom&#225;ticamente.
+  </div>
+
+  <!-- Nota normal -->
+  <div class="note" id="noteNormal">
+    &#128246; Necesitas internet para cargar el conversor.<br>
+    &#128274; El PDF <strong>nunca sale del dispositivo</strong>.
+  </div>
+
+  <input type="file" id="fileInput" accept="application/pdf">
+
+  <!-- Bot&#243;n portapapeles (solo cuando viene desde la app) -->
+  <button class="btn-clipboard hidden" id="btnClipboard" onclick="loadFromClipboard()">
+    &#128196; Cargar PDF
+  </button>
+
+  <!-- Bot&#243;n selecci&#243;n manual -->
+  <button id="btnPick" onclick="document.getElementById('fileInput').click()">
+    &#128193; Seleccionar PDF manualmente
+  </button>
+
+  <div class="status" id="status">
+    <div class="spinner"></div>
+    <p id="statusText">Cargando conversor&#8230;</p>
+  </div>
+
+  <div id="result" class="hidden">
+    <div style="height:20px;"></div>
+    <button class="btn-save-all hidden" id="saveAllBtn" onclick="saveAll()">
+      &#128247; Guardar todas las p&#225;ginas en Fotos
+    </button>
+    <div class="pages" id="pages"></div>
+  </div>
+
+  <div class="empty" id="empty">
+    <div class="icon">&#128196;</div>
+    <p id="emptyText">Selecciona un PDF para empezar</p>
+  </div>
+
+</div>
+<script>
+  /* ── Detectar si viene desde la app ── */
+  var fromApp = new URLSearchParams(window.location.search).get('from') === 'app';
+
+  if (fromApp) {
+    document.getElementById('noteApp').classList.remove('hidden');
+    document.getElementById('noteNormal').classList.add('hidden');
+    document.getElementById('btnClipboard').classList.remove('hidden');
+    document.getElementById('btnPick').className = 'btn-secondary';
+    document.getElementById('btnPick').innerHTML = '&#128193; Seleccionar PDF manualmente';
+    document.getElementById('emptyText').textContent = 'Toca "Cargar PDF" para empezar';
+  } else {
+    document.getElementById('btnPick').className = 'btn-primary';
+    document.getElementById('btnPick').innerHTML = '&#128196; Seleccionar PDF';
+  }
+
+  /* ── PDF.js ── */
+  var pdfJsReady = false;
+  var renderedBlobs = [];
+
+  function loadScript(src) {
+    return new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src; s.onload = resolve;
+      s.onerror = function() { reject(new Error('Sin conexión para cargar el conversor.')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+    .then(function() {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      pdfJsReady = true;
+    })
+    .catch(function(e) {
+      document.getElementById('empty').innerHTML =
+        '<div class="icon">⚠️</div><p>' + e.message + '</p>';
+      document.getElementById('empty').classList.remove('hidden');
+    });
+
+  /* ── Cargar desde portapapeles ── */
+  async function loadFromClipboard() {
+    try {
+      var base64 = await navigator.clipboard.readText();
+      if (!base64 || base64.length < 200) {
+        alert('No se encontró ningún PDF en el portapapeles.\nVuelve a la app y vuelve a intentarlo.');
+        return;
+      }
+      await processPdf(base64, 'documento');
+    } catch (e) {
+      if (e.name === 'NotAllowedError') {
+        alert('Toca "Permitir" cuando Safari pregunte para acceder al portapapeles.');
+      } else {
+        alert('Error: ' + e.message);
+      }
+    }
+  }
+
+  /* ── Selecci&#243;n manual ── */
+  document.getElementById('fileInput').addEventListener('change', async function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var base64 = await fileToBase64(file);
+    await processPdf(base64, file.name.replace(/\.pdf$/i, ''));
+    e.target.value = '';
+  });
+
+  function fileToBase64(file) {
+    return new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = function(e) { resolve(e.target.result.split(',')[1]); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /* ── Procesar PDF ── */
+  async function processPdf(base64, name) {
+    renderedBlobs = [];
+    document.getElementById('pages').innerHTML = '';
+    document.getElementById('saveAllBtn').classList.add('hidden');
+    document.getElementById('result').classList.add('hidden');
+    document.getElementById('empty').classList.add('hidden');
+    showStatus('Esperando conversor…');
+
+    try {
+      var waited = 0;
+      while (!pdfJsReady) {
+        await sleep(200); waited += 200;
+        if (waited > 15000) throw new Error('Sin conexión. Conéctate a internet e inténtalo.');
+      }
+
+      showStatus('Procesando…');
+      var binaryStr = atob(base64);
+      var bytes = new Uint8Array(binaryStr.length);
+      for (var i = 0; i < binaryStr.length; i++) { bytes[i] = binaryStr.charCodeAt(i); }
+
+      var pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+      var numPages = pdf.numPages;
+      document.getElementById('result').classList.remove('hidden');
+
+      for (var p = 1; p <= numPages; p++) {
+        showStatus('Renderizando página ' + p + ' de ' + numPages + '…');
+        var page = await pdf.getPage(p);
+        var vp = page.getViewport({ scale: 2.0 });
+        var canvas = document.createElement('canvas');
+        canvas.width = vp.width; canvas.height = vp.height;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        var blob = await canvasToBlob(canvas);
+        renderedBlobs.push({ blob: blob, pageNum: p, baseName: name });
+        var idx = renderedBlobs.length - 1;
+        var imgUrl = URL.createObjectURL(blob);
+        var card = document.createElement('div');
+        card.className = 'page-card';
+        card.innerHTML =
+          '<div class="page-label">Página ' + p + ' de ' + numPages + '</div>' +
+          '<img class="page-img" src="' + imgUrl + '" />' +
+          '<button class="btn-save-page" onclick="savePage(' + idx + ')">📷 Guardar en Fotos</button>';
+        document.getElementById('pages').appendChild(card);
+      }
+
+      hideStatus();
+      if (numPages > 1) document.getElementById('saveAllBtn').classList.remove('hidden');
+
+    } catch (err) {
+      hideStatus();
+      document.getElementById('empty').innerHTML =
+        '<div class="icon">⚠️</div><p>' + err.message + '</p>';
+      document.getElementById('empty').classList.remove('hidden');
+    }
+  }
+
+  /* ── Guardar ── */
+  async function savePage(idx) {
+    var item = renderedBlobs[idx];
+    var file = new File([item.blob], item.baseName + '_pag' + item.pageNum + '.jpg', { type: 'image/jpeg' });
+    try {
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+      } else {
+        window.open(URL.createObjectURL(item.blob), '_blank');
+        alert('Pulsa y mantén sobre la imagen → "Añadir a Fotos"');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') alert('Error: ' + err.message);
+    }
+  }
+
+  async function saveAll() {
+    var files = renderedBlobs.map(function(item) {
+      return new File([item.blob], item.baseName + '_pag' + item.pageNum + '.jpg', { type: 'image/jpeg' });
+    });
+    try {
+      if (navigator.share && navigator.canShare({ files: files })) {
+        await navigator.share({ files: files });
+      } else {
+        for (var i = 0; i < renderedBlobs.length; i++) await savePage(i);
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') alert('Error: ' + err.message);
+    }
+  }
+
+  function canvasToBlob(c) {
+    return new Promise(function(r) { c.toBlob(r, 'image/jpeg', 0.92); });
+  }
+  function showStatus(t) {
+    document.getElementById('statusText').textContent = t;
+    document.getElementById('status').style.display = 'block';
+  }
+  function hideStatus() { document.getElementById('status').style.display = 'none'; }
+  function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+</script>
+</body>
+</html>
